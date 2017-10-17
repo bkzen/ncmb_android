@@ -279,6 +279,7 @@ public class NCMBRichPush extends Dialog {
             NCMBRichPush.this.closeImage.setVisibility(View.VISIBLE);
             mButtonPrevious.setVisibility(View.VISIBLE);
             mButtonNext.setVisibility(View.VISIBLE);
+            updateUi();
         }
 
         @TargetApi(Build.VERSION_CODES.LOLLIPOP)
