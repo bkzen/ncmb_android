@@ -16,6 +16,7 @@
 package com.nifty.cloud.mb.core;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -23,7 +24,11 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
+import android.graphics.pdf.PdfRenderer;
+import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
@@ -37,15 +42,24 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 
+import org.apache.commons.io.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+
 /**
  * NCMBRichPush provide dialog for rich push notification
  */
 public class NCMBRichPush extends Dialog {
 
     private static final FrameLayout.LayoutParams FILL = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+    private static final String GOOGLE_DOCS_BASE_VIEWER_URL = "http://docs.google.com/gview?embedded=true&url=";
     private LinearLayout webBackView;
     private FrameLayout richPushHandlerContainer;
     private ImageView closeImage;
+    private ImageView mImageView;
     private String requestUrl;
     private ProgressDialog progressDialog;
 
@@ -87,7 +101,19 @@ public class NCMBRichPush extends Dialog {
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setBuiltInZoomControls(true);
         webView.getSettings().setUseWideViewPort(true);
-        webView.loadUrl(this.requestUrl);
+        boolean usingPdfRender = false;
+        if(this.requestUrl.toLowerCase().endsWith(".pdf")) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mImageView = new ImageView(getContext());
+                mImageView.setLayoutParams(FILL);
+                new RenderPdfTask().execute(new String[] {this.requestUrl});
+                usingPdfRender = true;
+            } else {
+                webView.loadUrl(new StringBuilder(GOOGLE_DOCS_BASE_VIEWER_URL).append(this.requestUrl).toString());
+            }
+        } else {
+            webView.loadUrl(this.requestUrl);
+        }
         webView.setLayoutParams(FILL);
 
         this.webBackView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -106,7 +132,15 @@ public class NCMBRichPush extends Dialog {
         int dispWidth = size.x / 60;
         int closeImageWidth = this.closeImage.getDrawable().getIntrinsicWidth();
         webViewContainer.setPadding(dispWidth, closeImageWidth / 2, dispWidth, dispWidth);
-        webViewContainer.addView(this.webBackView);
+        if (usingPdfRender) {
+            mImageView.setBackgroundColor(Color.WHITE);
+            mImageView.setPadding(3, 3, 3, 3);
+            this.mImageView.setVisibility(View.INVISIBLE);
+            webViewContainer.addView(this.mImageView);
+            NCMBRichPush.this.progressDialog.show();
+        } else {
+            webViewContainer.addView(this.webBackView);
+        }
 
         this.richPushHandlerContainer.addView(webViewContainer);
     }
@@ -154,6 +188,78 @@ public class NCMBRichPush extends Dialog {
             NCMBRichPush.this.richPushHandlerContainer.setBackgroundColor(0);
             NCMBRichPush.this.webBackView.setVisibility(View.VISIBLE);
             NCMBRichPush.this.closeImage.setVisibility(View.VISIBLE);
+        }
+    }
+
+    public class RenderPdfTask extends AsyncTask<String, Void, Bitmap> {
+        /**
+         * File descriptor of the PDF.
+         */
+        private ParcelFileDescriptor mFileDescriptor;
+
+        /**
+         * {@link android.graphics.pdf.PdfRenderer} to render the PDF.
+         */
+        private PdfRenderer mPdfRenderer;
+        private PdfRenderer.Page mCurrentPage;
+
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        @Override
+        protected Bitmap doInBackground(String... params) {
+            URL url;
+            try {
+                url = new URL(params[0]);
+                String tDir = System.getProperty("java.io.tmpdir");
+                String path = tDir + "tmp" + ".pdf";
+                File file = new File(path); file.deleteOnExit();
+                FileUtils.copyURLToFile(url, file);
+
+                mFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    mPdfRenderer = new PdfRenderer(mFileDescriptor);
+                }
+                return renderPage(0);
+
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Bitmap bitmap) {
+            super.onPostExecute(bitmap);
+            mImageView.setImageBitmap(bitmap);
+            NCMBRichPush.this.progressDialog.dismiss();
+            mImageView.setVisibility(View.VISIBLE);
+            NCMBRichPush.this.closeImage.setVisibility(View.VISIBLE);
+        }
+
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        private Bitmap renderPage(int index) {
+            if (mPdfRenderer.getPageCount() <= index) {
+                return null;
+            }
+            // Make sure to close the current page before opening another one.
+            if (null != mCurrentPage) {
+                mCurrentPage.close();
+            }
+            // Use `openPage` to open a specific page in PDF.
+            mCurrentPage = mPdfRenderer.openPage(index);
+            // Important: the destination bitmap must be ARGB (not RGB).
+            Bitmap bitmap = Bitmap.createBitmap(mCurrentPage.getWidth(), mCurrentPage.getHeight(),
+                    Bitmap.Config.ARGB_8888);
+            // Here, we render the page onto the Bitmap.
+            // To render a portion of the page, use the second and third parameter. Pass nulls to get
+            // the default result.
+            // Pass either RENDER_MODE_FOR_DISPLAY or RENDER_MODE_FOR_PRINT for the last parameter.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mCurrentPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+            }
+            // We are ready to show the Bitmap to userbitmap
+            return bitmap;
         }
     }
 }

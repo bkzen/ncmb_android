@@ -57,6 +57,7 @@ dependencies {
     testCompile 'org.skyscreamer:jsonassert:1.2.+'
     testCompile "org.robolectric:shadows-play-services:3.0"
     testCompile "org.robolectric:shadows-support-v4:3.0"
+    compile 'commons-io:commons-io:2.0.1'
 }
 
 task clearJar(type: Delete) {
