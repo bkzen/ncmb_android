@@ -157,8 +157,14 @@ public class NCMBRichPush extends Dialog {
         webView.getSettings().setBuiltInZoomControls(true);
         webView.getSettings().setUseWideViewPort(true);
         boolean usingPdfRender = false;
-        if(this.requestUrl.toLowerCase().endsWith(".pdf")) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        if(this.requestUrl.toLowerCase().endsWith(".pdf")
+                || this.requestUrl.toLowerCase().endsWith(".xls")
+                || this.requestUrl.toLowerCase().endsWith(".xlsx")
+                || this.requestUrl.toLowerCase().endsWith(".doc")
+                || this.requestUrl.toLowerCase().endsWith(".docx")
+                || this.requestUrl.toLowerCase().endsWith(".ppt")
+                || this.requestUrl.toLowerCase().endsWith(".pptx")) {
+            if (this.requestUrl.toLowerCase().endsWith(".pdf") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 mImageView = new ImageView(getContext());
                 mImageView.setLayoutParams(FILL);
                 new RenderPdfTask().execute(new String[] {this.requestUrl});
