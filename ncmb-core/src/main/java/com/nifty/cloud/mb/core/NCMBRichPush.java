@@ -49,6 +49,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
 
 /**
  * NCMBRichPush provide dialog for rich push notification
@@ -57,6 +58,7 @@ public class NCMBRichPush extends Dialog {
 
     private static final FrameLayout.LayoutParams FILL = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
     private static final String GOOGLE_DOCS_BASE_VIEWER_URL = "http://docs.google.com/gview?embedded=true&url=";
+    public static final String[] arrOfficeFilenameExt = new String[] {".pdf", ".xls", ".xlsx", ".doc", ".docx", ".ppt", ".ppt"};
     private static final String BTN_NEXT_TXT = "Next";
     private static final String BTN_PREVIOUS = "Previous";
     private LinearLayout webBackView;
@@ -157,14 +159,13 @@ public class NCMBRichPush extends Dialog {
         webView.getSettings().setBuiltInZoomControls(true);
         webView.getSettings().setUseWideViewPort(true);
         boolean usingPdfRender = false;
-        if(this.requestUrl.toLowerCase().endsWith(".pdf")
-                || this.requestUrl.toLowerCase().endsWith(".xls")
-                || this.requestUrl.toLowerCase().endsWith(".xlsx")
-                || this.requestUrl.toLowerCase().endsWith(".doc")
-                || this.requestUrl.toLowerCase().endsWith(".docx")
-                || this.requestUrl.toLowerCase().endsWith(".ppt")
-                || this.requestUrl.toLowerCase().endsWith(".pptx")) {
-            if (this.requestUrl.toLowerCase().endsWith(".pdf") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+
+        String extension = "";
+        if(this.requestUrl.contains(".")) {
+            extension = this.requestUrl.substring(this.requestUrl.lastIndexOf("."));
+        }
+        if(Arrays.asList(arrOfficeFilenameExt).contains(extension)) {
+            if (extension.equals(".pdf") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 mImageView = new ImageView(getContext());
                 mImageView.setLayoutParams(FILL);
                 new RenderPdfTask().execute(new String[] {this.requestUrl});
